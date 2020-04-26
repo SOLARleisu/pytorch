@@ -505,6 +505,10 @@ std::tuple<Tensor, Tensor, Tensor> conv_depthwise3d_backward_cuda(
             3, 3, 3, 1, 1, 1, 1, 1, 1, 1)
           DWCONV3D_BACKWARD_INPUT_DISPATCH_SPECIALIZATION(
             3, 3, 3, 1, 1, 1, 2, 2, 2, 1)
+          DWCONV3D_BACKWARD_INPUT_DISPATCH_SPECIALIZATION(
+            3, 3, 3, 1, 1, 1, 1, 2, 2, 1)
+          DWCONV3D_BACKWARD_INPUT_DISPATCH_SPECIALIZATION(
+            3, 3, 3, 1, 1, 1, 2, 1, 1, 1)
           DWCONV3D_BACKWARD_INPUT_DISPATCH_OTHERS
         }
     );

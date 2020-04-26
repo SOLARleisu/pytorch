@@ -137,7 +137,7 @@ __global__ void conv_depthwise3d_cuda_backward_input_kernel(
           for (int k_col = 0; k_col < kW; ++k_col) {
             const int out_col = out_col_end - k_col * dilationW;
             if (out_frame >= 0 && out_row >= 0 && out_col >= 0 &&
-                out_frame < oT && out_row < oH && out_col < oW &&
+                out_frame < oT * dT && out_row < oH * dH && out_col < oW * dW &&
                 out_frame % dT == 0 && out_row % dH == 0 && out_col % dW == 0) {
               sum += __ldg(kernel_ptr) * 
                 __ldg(&grad_output[batch][k_chn]
@@ -194,23 +194,23 @@ __global__ void conv_depthwise3d_cuda_backward_weight_kernel(
 
   scalar_t grad = (scalar_t)0;
   for (int batch = warpid; batch < input.size(0); batch += nwarps) {
-    const scalar_t* gout_ptr = grad_output[batch][k_channel].data();
+    const scalar_t* gout_ptr = grad_output[batch][k_channel].data() + laneid;
 
     for (int64_t pos = laneid; pos < oTHW; pos += C10_WARP_SIZE) {
       const int gout_col = pos % oW;
       const int gout_row = (pos / oW) % oH;
-      const int gout_frame = (pos / oW / oH) % oT;
+      const int gout_frame = pos / oW / oH;
 
-      const int in_col = (gout_col * dW) + (kW * dilationW) - pW;
-      const int in_row = (gout_row * dH) + (kH * dilationH) - pH;
-      const int in_frame = (gout_frame * dT) + (kT * dilationT) - pT;
+      const int in_col = (gout_col * dW) + (k_col * dilationW) - pW;
+      const int in_row = (gout_row * dH) + (k_row * dilationH) - pH;
+      const int in_frame = (gout_frame * dT) + (k_frame * dilationT) - pT;
       
-      if (in_frame >= 9 && in_row >= 0 && in_col >= 0 &&
+      if (in_frame >= 0 && in_row >= 0 && in_col >= 0 &&
           in_frame < iT && in_row < iH && in_col < iW) {
         grad += __ldg(gout_ptr) * 
           __ldg(&input[batch][in_channel][in_frame][in_row][in_col]);
       }
-      gout_ptr ++;
+      gout_ptr += C10_WARP_SIZE;
     }
   }
   
@@ -253,7 +253,7 @@ std::vector<int64_t> get_output_size(
 
     int64_t dim_kspan = (dim_ksize - 1) * dim_dilation + 1;
     output_size.push_back(
-        (dim_isize + dim_padding * 2 - dim_kspan + 1) / dim_stride);
+        (dim_isize + dim_padding * 2 - dim_kspan + 1 - 1) / dim_stride + 1);
   }
 
   return output_size;

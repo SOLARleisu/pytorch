@@ -246,7 +246,7 @@ auto ConvParams::is_depthwise(
         const at::Tensor& input, const at::Tensor& weight) const -> bool {
   return input.is_cuda() &&
          !transposed &&
-         input.ndimension() == 4 &&
+         (input.ndimension() == 4 || input.ndimension() == 5) &&
          input.size(1) == groups &&
          groups > 1 && // no point if there is only a single group
          weight.size(0) % input.size(1) == 0; // output channels must be a multiple of input channels
@@ -371,7 +371,7 @@ auto ConvParams::use_cudnn_depthwise(
                          use_cudnn(input, weight) &&
                          input.scalar_type() == kHalf && // only for FP16
                          weight.scalar_type() == kHalf &&
-                         is_depthwise(input, weight) &&
+                         is_depthwise(input, weight) && input.dim() == 4 &&
                          weight.size(2) == weight.size(3) && // only square kernels
                          input.size(2) >= 7 && // min width/height 7
                          !is_dilated() && // no dilation supported
@@ -636,7 +636,12 @@ at::Tensor _convolution(
             input.contiguous(), weight, bias,
             padding, stride, dilation, params.groups, params.benchmark, params.deterministic);
       } else {
+        if (input.dim() == 4) {
           output = at::thnn_conv_depthwise2d(input.contiguous(), weight, kernel_size, bias, stride, padding, dilation);
+        }
+        else if (input.dim() == 5) {
+          output = at::conv_depthwise3d(input.contiguous(), weight, kernel_size, bias, stride, padding, dilation);
+        }
       }
   } else if (params.use_cudnn(input, weight)) {
     TORCH_CHECK(input.options().type_equal(weight.options()),
